@@ -1,5 +1,4 @@
-
-using CTR.Application.DTOs;
+using CTR.Application.DTOs.Movie;
 using CTR.Application.Extensions;
 
 namespace CTR.Application.Interfaces
@@ -11,5 +10,6 @@ namespace CTR.Application.Interfaces
         Task<Result<MovieDto>> CreateAsync(CreateMovieDto dto);
         Task<Result<MovieDto>> UpdateAsync(int id, UpdateMovieDto dto);
         Task<Result<bool>> DeleteAsync(int id);
+        Task<Result<MovieWithSeatsDto>> GetSeatsAsync(int id);
     }
 }

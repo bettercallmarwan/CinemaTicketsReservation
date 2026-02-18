@@ -1,5 +1,5 @@
 ﻿using CRS.Application.Interfaces;
-using CTR.Models;
+using CTR.Models.Classes;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;

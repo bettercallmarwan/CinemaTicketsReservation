@@ -1,6 +1,7 @@
 ﻿using CTR.Application.Extensions;
 using CTR.Application.Interfaces;
-using CTR.Models;
+using CTR.Models.Classes;
+using CTR.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using Stripe;
 using Stripe.Checkout;

@@ -1,5 +1,5 @@
 ﻿using CTR.Application.Interfaces;
-using CTR.Models;
+using CTR.Models.Classes;
 
 namespace CRS.Infrastructure.Persistence
 {
@@ -71,8 +71,22 @@ namespace CRS.Infrastructure.Persistence
                 };
 
                 dbContext.Movies.AddRange(movies);
-                await dbContext.SaveChangesAsync();
             }
+
+            if(!dbContext.User.Where(u => u.Role == "Admin").Any())
+            {
+                var admin = new User
+                {
+                    Name = "Admin1",
+                    Email = "Admin1@gmail.com",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password1_"),
+                    Role = "Admin"
+                };
+
+                await dbContext.User.AddAsync(admin);
+            }
+
+            await dbContext.SaveChangesAsync();
         }
     }
 }

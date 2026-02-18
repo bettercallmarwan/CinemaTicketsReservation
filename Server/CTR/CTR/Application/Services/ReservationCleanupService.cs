@@ -1,5 +1,5 @@
 ﻿using CTR.Application.Interfaces;
-using CTR.Models;
+using CTR.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace CTR.Application.Services

@@ -1,6 +1,6 @@
 ﻿using AutoMapper;
-using CTR.Application.DTOs;
-using CTR.Models;
+using CTR.Application.DTOs.Reservation;
+using CTR.Models.Classes;
 
 namespace CTR.Application.Mapping
 {

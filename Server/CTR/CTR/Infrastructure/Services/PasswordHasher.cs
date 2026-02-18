@@ -1,5 +1,4 @@
 ﻿using CTR.Application.Interfaces;
-using Microsoft.AspNetCore.Identity;
 
 namespace CTR.Infrastructure.Services
 {

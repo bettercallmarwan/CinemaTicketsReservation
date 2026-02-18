@@ -1,4 +1,4 @@
-using CTR.Application.DTOs;
+using CTR.Application.DTOs.Movie;
 using CTR.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -27,6 +27,13 @@ namespace CTR.Controllers
         public async Task<IActionResult> GetById(int id)
         {
             var result = await _movieService.GetByIdAsync(id);
+            return this.GetResponse(result);
+        }
+
+        [HttpGet("seats/{id}")]
+        public async Task<IActionResult> GetSeats(int id)
+        {
+            var result = await _movieService.GetSeatsAsync(id);
             return this.GetResponse(result);
         }
 

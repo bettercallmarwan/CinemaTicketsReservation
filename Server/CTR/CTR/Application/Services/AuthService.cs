@@ -1,7 +1,8 @@
 using CRS.Application.Interfaces;
-using CTR.Application.DTOs;
+using CTR.Application.DTOs.Auth;
 using CTR.Application.Interfaces;
 using CTR.Models;
+using CTR.Models.Classes;
 using Microsoft.EntityFrameworkCore;
 
 namespace CTR.Application.Services
@@ -45,13 +46,7 @@ namespace CTR.Application.Services
 
             var token = _tokenService.GenerateToken(user);
 
-            return new AuthResponseDto
-            {
-                Token = token,
-                Email = user.Email,
-                Name = user.Name,
-                Role = user.Role
-            };
+            return new AuthResponseDto(token, user.Email, user.Name, user.Role);
         }
 
         public async Task<AuthResponseDto?> LoginAsync(LoginDto dto)
@@ -66,13 +61,7 @@ namespace CTR.Application.Services
 
             var token = _tokenService.GenerateToken(user);
 
-            return new AuthResponseDto
-            {
-                Token = token,
-                Email = user.Email,
-                Name = user.Name,
-                Role = user.Role
-            };
+            return new AuthResponseDto(token, user.Email, user.Name, user.Role);
         }
     }
 }

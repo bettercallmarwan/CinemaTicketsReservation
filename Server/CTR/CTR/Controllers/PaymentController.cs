@@ -1,4 +1,4 @@
-﻿using CTR.Application.DTOs;
+﻿using CTR.Application.DTOs.Checkout;
 using CTR.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

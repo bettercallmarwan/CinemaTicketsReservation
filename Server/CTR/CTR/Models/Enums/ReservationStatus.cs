@@ -1,4 +1,4 @@
-﻿    namespace CTR.Models
+﻿namespace CTR.Models.Enums
 {
     public enum ReservationStatus
     {

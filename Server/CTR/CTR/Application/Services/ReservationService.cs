@@ -1,9 +1,12 @@
 ﻿using AutoMapper;
+using CTR.Application.DTOs.Reservation;
 using CTR.Application.Extensions;
 using CTR.Application.Interfaces;
-using CTR.Models;
+using CTR.Models.Classes;
+using CTR.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Stripe;
 using System.Data;
 using System.Net;
 
@@ -69,5 +72,67 @@ namespace CTR.Application.Services
                 throw;
             }
         }
+
+        public async Task<Result<CancelReservationResponseDto>> CancelReservationAsync(int reservationId, int userId)
+        {
+            var reservation = await _context.Reservations.FindAsync(reservationId);
+
+            if (reservation == null)
+            {
+                return Result<CancelReservationResponseDto>.Fail("Reservation cannot be found", HttpStatusCode.NotFound);
+            }
+
+            if (reservation.UserId != userId)
+            {
+                return Result<CancelReservationResponseDto>.Fail("Forbidden Request", HttpStatusCode.Forbidden);
+            }
+
+            if (reservation.Status != ReservationStatus.Confirmed)
+            {
+                return Result<CancelReservationResponseDto>.Fail("Reservation is not confirmed", HttpStatusCode.BadRequest);
+            }
+
+            reservation.Status = ReservationStatus.Cancelled;
+
+            var seat = await _context.Seats.FirstOrDefaultAsync(s => s.SeatNumber == reservation.SeatNumber && s.MovieId == reservation.MovieId);
+
+            if(seat == null)
+            {
+                return Result<CancelReservationResponseDto>.Fail("Seat cannot be found", HttpStatusCode.NotFound);
+            }
+
+            seat.Status = SeatStatus.Free;
+
+            try
+            {
+                var sessionService = new Stripe.Checkout.SessionService();
+                var session = await sessionService.GetAsync(reservation.StripeSessionId);
+
+                var refundService = new RefundService();
+                await refundService.CreateAsync(new RefundCreateOptions
+                {
+                    PaymentIntent = session.PaymentIntentId
+                });
+            }
+            catch(StripeException ex)
+            {
+                return Result<CancelReservationResponseDto>.Fail($"Error Refunding : {ex.Message}", HttpStatusCode.InternalServerError);
+            }
+
+            await _context.SaveChangesAsync();
+
+            var result = new CancelReservationResponseDto(true, reservationId, seat.SeatNumber);
+            return Result<CancelReservationResponseDto>.Ok(result);
+        }
+
+        public async Task<Result<IEnumerable<ReservationResponseDto>>> GetUserReservationsAsync(int userId)
+        {
+            var reservations = await _context.Reservations.Where(r => r.UserId == userId).Include(r => r.Movie).ToListAsync();
+
+            var reservationsDto = reservations.Select(r => new ReservationResponseDto(r.SeatNumber, r.Movie.Title, userId, r.Status, r.Price, r.Date)).ToList();
+
+            return Result<IEnumerable<ReservationResponseDto>>.Ok(reservationsDto);
+        }
+
     }
 }

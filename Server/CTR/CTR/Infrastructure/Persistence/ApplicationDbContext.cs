@@ -1,5 +1,5 @@
 ﻿using CTR.Application.Interfaces;
-using CTR.Models;
+using CTR.Models.Classes;
 using Microsoft.EntityFrameworkCore;
 
 namespace CTR.Infrastructure.Persistence

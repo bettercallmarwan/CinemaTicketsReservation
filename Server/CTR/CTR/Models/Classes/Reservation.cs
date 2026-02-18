@@ -1,4 +1,6 @@
-﻿namespace CTR.Models
+﻿using CTR.Models.Enums;
+
+namespace CTR.Models.Classes
 {
     public class Reservation
     {

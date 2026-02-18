@@ -1,4 +1,4 @@
-﻿using CTR.Application.DTOs;
+﻿using CTR.Application.DTOs.Auth;
 
 namespace CTR.Application.Interfaces
 {

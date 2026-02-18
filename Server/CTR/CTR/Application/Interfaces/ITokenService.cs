@@ -1,4 +1,4 @@
-using CTR.Models;
+using CTR.Models.Classes;
 
 namespace CRS.Application.Interfaces
 {

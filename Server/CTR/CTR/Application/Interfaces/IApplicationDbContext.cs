@@ -1,4 +1,4 @@
-﻿using CTR.Models;
+﻿using CTR.Models.Classes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
@@ -10,7 +10,6 @@ namespace CTR.Application.Interfaces
         public DbSet<Seat> Seats { get; }
         public DbSet<User> User { get; }
         public DbSet<Reservation> Reservations { get; }
-
 
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
         DatabaseFacade Database { get; }
