@@ -21,18 +21,18 @@ namespace CTR.Application.Services
         public async Task<Result<IEnumerable<MovieDto>>> GetAllAsync()
         {
             var movies = await _context.Movies.ToListAsync();
-
             var movieDtos = movies.Select(m => new MovieDto(m.Id, m.Title, m.Hall, m.Date));
-
+            
             return Result<IEnumerable<MovieDto>>.Ok(movieDtos);
         }
 
         public async Task<Result<MovieDto>> GetByIdAsync(int id)
         {
             var movie = await _context.Movies.FindAsync(id);
-
             if (movie == null)
+            {
                 return Result<MovieDto>.Fail("Movie not found.", HttpStatusCode.NotFound);
+            }
 
             return Result<MovieDto>.Ok(new MovieDto(movie.Id, movie.Title, movie.Hall, movie.Date));
         }
@@ -42,10 +42,11 @@ namespace CTR.Application.Services
             var movie = await _context.Movies.Include(m => m.Seats).FirstOrDefaultAsync(m => m.Id == id);
 
             if (movie == null)
+            {
                 return Result<MovieWithSeatsDto>.Fail("Movie not found.", HttpStatusCode.NotFound);
+            }
 
-            var seatsDto = movie.Seats.Select(s => new SeatDto(s.SeatNumber, s.Price, s.Status)).ToList();
-
+            var seatsDto = movie.Seats.Select(s => new SeatDto(s.Id, s.SeatNumber, s.Price, s.Status)).ToList();
             return Result<MovieWithSeatsDto>.Ok(new MovieWithSeatsDto(movie.Id, movie.Title, movie.Hall, movie.Date, seatsDto));
         }
 
@@ -57,7 +58,6 @@ namespace CTR.Application.Services
                 Hall = dto.Hall,
                 Date = dto.Date,
             };
-
             _context.Movies.Add(movie);
 
             var seats = dto.Seats.Select(s => new Seat
@@ -65,11 +65,9 @@ namespace CTR.Application.Services
                 SeatNumber = s.SeatNumber,
                 Price = s.Price
             }).ToList();
-
             movie.Seats = seats;
 
             await _context.SaveChangesAsync();
-
             return Result<MovieDto>.Ok(new MovieDto(movie.Id, movie.Title, movie.Hall, movie.Date));
         }
 
@@ -90,7 +88,10 @@ namespace CTR.Application.Services
                 Price = s.Price
             }).ToList();
 
+            var existingSeats = await _context.Seats.Where(s => s.MovieId == id).ToListAsync();
+            _context.Seats.RemoveRange(existingSeats);
             movie.Seats = seats;
+
             await _context.SaveChangesAsync();
 
             return Result<MovieDto>.Ok(new MovieDto(movie.Id, movie.Title, movie.Hall, movie.Date));

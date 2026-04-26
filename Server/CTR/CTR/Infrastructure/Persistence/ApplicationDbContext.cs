@@ -24,7 +24,7 @@ namespace CTR.Infrastructure.Persistence
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Seat>()
-                .HasIndex(s => s.SeatNumber)
+                .HasIndex(s => new { s.SeatNumber, s.MovieId })
                 .IsUnique();
 
         }

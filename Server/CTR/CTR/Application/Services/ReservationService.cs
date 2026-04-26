@@ -25,7 +25,7 @@ namespace CTR.Application.Services
 
         public async Task<Result<int>> ReserveSeatAsync(int seatId, int userId)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+             await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
 
             try
             {
@@ -38,7 +38,7 @@ namespace CTR.Application.Services
                     return Result<int>.Fail("Seat is not found", HttpStatusCode.NotFound);
                 }
 
-                if (seat.Status == SeatStatus.Booked || seat.Status == SeatStatus.Locked)
+                if (seat.Status is SeatStatus.Booked or SeatStatus.Locked)
                 {
                     return Result<int>.Fail("Seat is not currently available, try again later", HttpStatusCode.BadRequest);
                 }
@@ -92,6 +92,8 @@ namespace CTR.Application.Services
                 return Result<CancelReservationResponseDto>.Fail("Reservation is not confirmed", HttpStatusCode.BadRequest);
             }
 
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
             reservation.Status = ReservationStatus.Cancelled;
 
             var seat = await _context.Seats.FirstOrDefaultAsync(s => s.SeatNumber == reservation.SeatNumber && s.MovieId == reservation.MovieId);
@@ -120,7 +122,8 @@ namespace CTR.Application.Services
             }
 
             await _context.SaveChangesAsync();
-
+            await transaction.CommitAsync();
+            
             var result = new CancelReservationResponseDto(true, reservationId, seat.SeatNumber);
             return Result<CancelReservationResponseDto>.Ok(result);
         }

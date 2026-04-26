@@ -1,4 +1,4 @@
-﻿using CTR.Application.Interfaces;
+using CTR.Application.Interfaces;
 using CTR.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,38 +17,37 @@ namespace CTR.Application.Services
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                using (var scope = _scopeFactory.CreateScope())
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var _context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+
+                var expiredId = await _context.Reservations
+                    .Where(r => r.Status == ReservationStatus.Pending && r.ExpiresAt < DateTime.UtcNow)
+                    .Select(r => r.Id)
+                    .ToListAsync();
+
+                foreach(var id in expiredId)
                 {
-                    var _context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+                    var reservation = await _context.Reservations
+                        .FromSql($"SELECT * FROM \"Reservations\" WHERE \"Id\" = {id} FOR UPDATE")
+                        .FirstOrDefaultAsync();
 
-                    using var transaction = await _context.Database.BeginTransactionAsync();
+                    if (reservation == null || reservation.Status != ReservationStatus.Pending)
+                        continue; //already confirmed by webhook
 
-                    var expiredId = await _context.Reservations
-                        .Where(r => r.Status == ReservationStatus.Pending && r.ExpiresAt < DateTime.UtcNow)
-                        .Select(r => r.Id)
-                        .ToListAsync();
+                    reservation.Status = ReservationStatus.Expired;
 
-                    foreach(var id in expiredId)
-                    {
-                        var reservation = await _context.Reservations
-                            .FromSql($"SELECT * FROM \"Reservations\" WHERE \"Id\" = {id} FOR UPDATE")
-                            .FirstOrDefaultAsync();
-
-                        if (reservation == null || reservation.Status != ReservationStatus.Pending)
-                            continue; //already confirmed by webhook
-
-                        reservation.Status = ReservationStatus.Expired;
-
-                        var seat = await _context.Seats.FirstOrDefaultAsync(s => s.SeatNumber == reservation.SeatNumber && s.MovieId == reservation.MovieId);
-                        if (seat != null) seat.Status = SeatStatus.Free;    
-                    }
-
-                    await _context.SaveChangesAsync(stoppingToken);
-                    await transaction.CommitAsync();
+                    var seat = await _context.Seats.FirstOrDefaultAsync(s => s.SeatNumber == reservation.SeatNumber && s.MovieId == reservation.MovieId);
+                    if (seat != null) seat.Status = SeatStatus.Free;    
                 }
+
+                await _context.SaveChangesAsync(stoppingToken);
+                await transaction.CommitAsync();
 
                 await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
             }
         }
     }
 }
+
