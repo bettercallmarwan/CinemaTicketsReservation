@@ -92,6 +92,12 @@ namespace CTR.Application.Services
                 return Result<CancelReservationResponseDto>.Fail("Reservation is not confirmed", HttpStatusCode.BadRequest);
             }
 
+            var isRefunded = await RefundAsync(reservation.StripeSessionId);
+            if (!isRefunded.Success)
+            {
+                return Result<CancelReservationResponseDto>.Fail(isRefunded.Error, isRefunded.StatusCode);
+            }
+
             await using var transaction = await _context.Database.BeginTransactionAsync();
 
             reservation.Status = ReservationStatus.Cancelled;
@@ -105,27 +111,34 @@ namespace CTR.Application.Services
 
             seat.Status = SeatStatus.Free;
 
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            
+            
+            
+            var result = new CancelReservationResponseDto(true, reservationId, seat.SeatNumber);
+            return Result<CancelReservationResponseDto>.Ok(result);
+        }
+
+        public async Task<Result<bool>> RefundAsync(string StripeSessionId)
+        {
             try
             {
                 var sessionService = new Stripe.Checkout.SessionService();
-                var session = await sessionService.GetAsync(reservation.StripeSessionId);
+                var session = await sessionService.GetAsync(StripeSessionId);
 
                 var refundService = new RefundService();
                 await refundService.CreateAsync(new RefundCreateOptions
                 {
                     PaymentIntent = session.PaymentIntentId
                 });
+
+                return Result<bool>.Ok(true);
             }
             catch(StripeException ex)
             {
-                return Result<CancelReservationResponseDto>.Fail($"Error Refunding : {ex.Message}", HttpStatusCode.InternalServerError);
+                return Result<bool>.Fail($"Error Refunding : {ex.Message}", HttpStatusCode.InternalServerError);
             }
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-            
-            var result = new CancelReservationResponseDto(true, reservationId, seat.SeatNumber);
-            return Result<CancelReservationResponseDto>.Ok(result);
         }
 
         public async Task<Result<IEnumerable<ReservationResponseDto>>> GetUserReservationsAsync(int userId)

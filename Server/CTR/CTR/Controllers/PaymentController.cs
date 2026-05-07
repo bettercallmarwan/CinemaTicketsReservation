@@ -37,15 +37,11 @@ namespace CTR.Controllers
             var json = await new StreamReader(HttpContext.Request.Body).ReadToEndAsync();
             var stripeSignature = Request.Headers["Stripe-Signature"];
 
-            try
-            {
-                await _paymentService.HandleCheckoutCompletedAsync(json, stripeSignature!);
+            var result = await _paymentService.HandleCheckoutCompletedAsync(json, stripeSignature!);
+            if(result.Success)
                 return Ok();
-            }
-            catch (StripeException)
-            {
-                return BadRequest("Invalid Stripe signature");
-            }
+            
+            return BadRequest("Invalid Stripe signature");
         }
 
         [HttpGet("checkout-success")]

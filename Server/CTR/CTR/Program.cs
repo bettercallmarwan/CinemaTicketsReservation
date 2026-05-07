@@ -108,9 +108,22 @@ namespace CTR
                     IssuerSigningKey = new SymmetricSecurityKey(key)
                 };
             });
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowFrontend",
+                    policy =>
+                    {
+                        policy.WithOrigins("http://localhost:5173") // Vite default port
+                              .AllowAnyHeader()
+                              .AllowAnyMethod();
+                    });
+            });
+
             var app = builder.Build();
 
             app.UseMiddleware<ExceptionHandlerMiddleware>();
+
+            app.UseCors("AllowFrontend");
 
             if (app.Environment.IsDevelopment())
             {

@@ -1,4 +1,5 @@
-﻿using CTR.Application.Extensions;
+﻿using System.Data;
+using CTR.Application.Extensions;
 using CTR.Application.Interfaces;
 using CTR.Models.Classes;
 using CTR.Models.Enums;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Stripe;
 using Stripe.Checkout;
 using System.Net;
+using Npgsql;
 
 namespace CTR.Application.Services
 {
@@ -48,39 +50,65 @@ namespace CTR.Application.Services
             return Result<string>.Ok(session.Url);
         }
 
-        public async Task HandleCheckoutCompletedAsync(string json, string stripeSignature)
+        public async Task<Result<bool>> HandleCheckoutCompletedAsync(string json, string stripeSignature)
         {
-            var webhookSecret = _configuration["Stripe:WebhookSecret"];
-
-            var stripeEvent = EventUtility.ConstructEvent(json, stripeSignature, webhookSecret);
-
-            if (stripeEvent.Type == EventTypes.CheckoutSessionCompleted)
+            try
             {
-                var session = stripeEvent.Data.Object as Session;
+                var webhookSecret = _configuration["Stripe:WebhookSecret"];
+                
+                var stripeEvent = EventUtility.ConstructEvent(json, stripeSignature, webhookSecret);
 
-                if (session?.Metadata.TryGetValue("reservationId", out var reservationIdStr) == true
-                    && int.TryParse(reservationIdStr, out var reservationId))
+                if (stripeEvent.Type == EventTypes.CheckoutSessionCompleted)
                 {
-                    var reservation = await _context.Reservations
+                    var session = stripeEvent.Data.Object as Session;
+
+                    if (session?.Metadata.TryGetValue("reservationId", out var reservationIdStr) == true
+                        && int.TryParse(reservationIdStr, out var reservationId))
+                    {
+                        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+                        
+                        try 
+                        {
+                            var reservation = await _context.Reservations
                                 .FromSql($"SELECT * FROM \"Reservations\" WHERE \"Id\" = {reservationId} FOR UPDATE")
                                 .FirstOrDefaultAsync();
 
-                    if (reservation != null && reservation.Status == ReservationStatus.Pending)
-                    {
-                        reservation.Status = ReservationStatus.Confirmed;
+                            if (reservation != null && reservation.Status == ReservationStatus.Pending)
+                            {
+                                reservation.Status = ReservationStatus.Confirmed;
 
-                        var seat = await _context.Seats.FirstOrDefaultAsync(s => s.SeatNumber == reservation.SeatNumber && s.MovieId == reservation.MovieId);
+                                var seat = await _context.Seats.FirstOrDefaultAsync(s => s.SeatNumber == reservation.SeatNumber && s.MovieId == reservation.MovieId);
 
-                        if (seat != null)
-                        {
-                            seat.Status = SeatStatus.Booked;
+                                if (seat != null)
+                                {
+                                    seat.Status = SeatStatus.Booked;
+                                }
+
+                                await _context.SaveChangesAsync();
+                                await transaction.CommitAsync();
+                            }
                         }
-
-                        await _context.SaveChangesAsync();
+                        catch (Exception ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "40P01") 
+                        {
+                            await transaction.RollbackAsync();
+                            return Result<bool>.Fail("Deadlock encountered, try again", HttpStatusCode.Conflict);
+                        }
+                        catch (Exception)
+                        {
+                            await transaction.RollbackAsync();
+                            throw;
+                        }
                     }
                 }
             }
+            catch (StripeException ex)
+            {
+                return Result<bool>.Fail($"Invalid Stripe Signature: {ex.Message}", HttpStatusCode.BadRequest);
+            }
+            
+            return Result<bool>.Ok(true);
         }
+
 
         private SessionCreateOptions CreateSessionOptions(Reservation reservation)
         {
