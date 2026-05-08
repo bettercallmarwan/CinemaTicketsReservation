@@ -13,39 +13,39 @@ namespace CTR.Application.Services
             _scopeFactory = scopeFactory;
         }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override async Task ExecuteAsync(CancellationToken ct)
         {
-            while (!stoppingToken.IsCancellationRequested)
+            while (!ct.IsCancellationRequested)
             {
                 await using var scope = _scopeFactory.CreateAsyncScope();
                 var _context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
 
-                await using var transaction = await _context.Database.BeginTransactionAsync();
+                int pendingStatus = (int)ReservationStatus.Pending;
+                int expiredStatus = (int)ReservationStatus.Expired;
+                int freeSeatStatus = (int)SeatStatus.Free;
+                DateTime now = DateTime.UtcNow;
 
-                var expiredId = await _context.Reservations
-                    .Where(r => r.Status == ReservationStatus.Pending && r.ExpiresAt < DateTime.UtcNow)
-                    .Select(r => r.Id)
-                    .ToListAsync();
+                await _context.Database.ExecuteSqlInterpolatedAsync($@"
+                    WITH expired_res AS (
+                        SELECT ""Id"", ""SeatNumber"", ""MovieId""
+                        FROM ""Reservations""
+                        WHERE ""Status"" = {pendingStatus} AND ""ExpiresAt"" < {now}
+                        FOR UPDATE SKIP LOCKED
+                    ),
+                    update_reservations AS (
+                        UPDATE ""Reservations""
+                        SET ""Status"" = {expiredStatus}
+                        FROM expired_res
+                        WHERE ""Reservations"".""Id"" = expired_res.""Id""
+                    )
+                    UPDATE ""Seats""
+                    SET ""Status"" = {freeSeatStatus}
+                    FROM expired_res
+                    WHERE ""Seats"".""SeatNumber"" = expired_res.""SeatNumber"" 
+                      AND ""Seats"".""MovieId"" = expired_res.""MovieId"";
+                ", ct);
 
-                foreach(var id in expiredId)
-                {
-                    var reservation = await _context.Reservations
-                        .FromSql($"SELECT * FROM \"Reservations\" WHERE \"Id\" = {id} FOR UPDATE")
-                        .FirstOrDefaultAsync();
-
-                    if (reservation == null || reservation.Status != ReservationStatus.Pending)
-                        continue; //already confirmed by webhook
-
-                    reservation.Status = ReservationStatus.Expired;
-
-                    var seat = await _context.Seats.FirstOrDefaultAsync(s => s.SeatNumber == reservation.SeatNumber && s.MovieId == reservation.MovieId);
-                    if (seat != null) seat.Status = SeatStatus.Free;    
-                }
-
-                await _context.SaveChangesAsync(stoppingToken);
-                await transaction.CommitAsync();
-
-                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                await Task.Delay(TimeSpan.FromMinutes(1), ct);
             }
         }
     }

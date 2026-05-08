@@ -4,6 +4,7 @@ using CTR.Application.Extensions;
 using CTR.Application.Interfaces;
 using CTR.Models;
 using CTR.Models.Classes;
+using CTR.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
 
@@ -89,6 +90,12 @@ namespace CTR.Application.Services
             }).ToList();
 
             var existingSeats = await _context.Seats.Where(s => s.MovieId == id).ToListAsync();
+
+            if (existingSeats.Any(s => s.Status == SeatStatus.Booked || s.Status == SeatStatus.Locked))
+            {
+                return Result<MovieDto>.Fail("Cannot modify seats because tickets have already been sold or locked.", HttpStatusCode.BadRequest);
+            }
+
             _context.Seats.RemoveRange(existingSeats);
             movie.Seats = seats;
 
@@ -103,6 +110,13 @@ namespace CTR.Application.Services
 
             if (movie == null)
                 return Result<bool>.Fail("Movie not found.", HttpStatusCode.NotFound);
+
+            var hasSoldTickets = await _context.Reservations.AnyAsync(r => r.MovieId == id && r.Status == ReservationStatus.Confirmed);
+
+            if (hasSoldTickets)
+            {
+                return Result<bool>.Fail("Cannot delete this movie because it has confirmed reservations.", HttpStatusCode.BadRequest);
+            }
 
             _context.Movies.Remove(movie);
             await _context.SaveChangesAsync();
