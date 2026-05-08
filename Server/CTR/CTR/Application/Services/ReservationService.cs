@@ -38,9 +38,24 @@ namespace CTR.Application.Services
                     return Result<int>.Fail("Seat is not found", HttpStatusCode.NotFound);
                 }
 
-                if (seat.Status is SeatStatus.Booked or SeatStatus.Locked)
+                if (seat.Status is SeatStatus.Booked)
                 {
                     return Result<int>.Fail("Seat is not currently available, try again later", HttpStatusCode.BadRequest);
+                }
+                
+                if (seat.Status is SeatStatus.Locked)
+                {
+                    var pendingReservation = await _context.Reservations
+                        .FirstOrDefaultAsync(r => r.MovieId == seat.MovieId && r.SeatNumber == seat.SeatNumber && r.Status == ReservationStatus.Pending);
+
+                    if (pendingReservation != null && pendingReservation.ExpiresAt < DateTime.UtcNow)
+                    {
+                        pendingReservation.Status = ReservationStatus.Expired;
+                    }
+                    else
+                    {
+                        return Result<int>.Fail("Seat is not currently available, try again later", HttpStatusCode.BadRequest);
+                    }   
                 }
 
                 var movie = await _context.Movies.FindAsync(seat.MovieId);
